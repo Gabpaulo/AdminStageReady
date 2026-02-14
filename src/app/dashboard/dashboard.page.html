@@ -1,0 +1,82 @@
+<div class="dashboard-page">
+  <div class="page-header">
+    <h1>Dashboard</h1>
+    <p>Overview of your StageReady platform</p>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-container" *ngIf="loading">
+    <ion-spinner name="crescent"></ion-spinner>
+    <p>Loading dashboard...</p>
+  </div>
+
+  <!-- Error -->
+  <div class="error-container" *ngIf="error && !loading">
+    <ion-icon name="alert-circle-outline"></ion-icon>
+    <p>{{ error }}</p>
+    <button class="retry-btn" (click)="loadStats()">Retry</button>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="stats-grid" *ngIf="stats && !loading">
+    <div class="stat-card blue">
+      <div class="stat-icon">
+        <ion-icon name="people"></ion-icon>
+      </div>
+      <div class="stat-info">
+        <span class="stat-value">{{ stats.totalUsers }}</span>
+        <span class="stat-label">Total Users</span>
+      </div>
+    </div>
+
+    <div class="stat-card purple">
+      <div class="stat-icon">
+        <ion-icon name="mic"></ion-icon>
+      </div>
+      <div class="stat-info">
+        <span class="stat-value">{{ stats.totalSpeeches }}</span>
+        <span class="stat-label">Total Speeches</span>
+      </div>
+    </div>
+
+    <div class="stat-card green">
+      <div class="stat-icon">
+        <ion-icon name="flash"></ion-icon>
+      </div>
+      <div class="stat-info">
+        <span class="stat-value">{{ stats.activeUsersLast7Days }}</span>
+        <span class="stat-label">Active (7 days)</span>
+      </div>
+    </div>
+
+    <div class="stat-card orange">
+      <div class="stat-icon">
+        <ion-icon name="star"></ion-icon>
+      </div>
+      <div class="stat-info">
+        <span class="stat-value">{{ formatScore(stats.averageOverallScore) }}</span>
+        <span class="stat-label">Avg Score</span>
+      </div>
+    </div>
+
+    <div class="stat-card teal">
+      <div class="stat-icon">
+        <ion-icon name="time"></ion-icon>
+      </div>
+      <div class="stat-info">
+        <span class="stat-value">{{ stats.totalPracticeMinutes }}</span>
+        <span class="stat-label">Practice Minutes</span>
+      </div>
+    </div>
+
+    <div class="stat-card pink">
+      <div class="stat-icon">
+        <ion-icon name="trending-up"></ion-icon>
+      </div>
+      <div class="stat-info">
+        <span class="stat-value">{{ stats.speechesThisWeek }}</span>
+        <span class="stat-label">Speeches This Week</span>
+      </div>
+    </div>
+  </div>
+</div>

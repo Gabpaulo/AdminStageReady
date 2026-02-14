@@ -1,0 +1,368 @@
+<div class="user-detail-page">
+  <!-- Back Button -->
+  <button class="back-btn" (click)="goBack()">
+    <ion-icon name="arrow-back-outline"></ion-icon>
+    Back to Users
+  </button>
+
+  <!-- Loading -->
+  <div class="loading-container" *ngIf="loading">
+    <ion-spinner name="crescent"></ion-spinner>
+    <p>Loading user data...</p>
+  </div>
+
+  <!-- Error -->
+  <div class="error-container" *ngIf="error && !loading">
+    <ion-icon name="alert-circle-outline"></ion-icon>
+    <p>{{ error }}</p>
+  </div>
+
+  <!-- Confirmation Modal -->
+  <div class="modal-overlay" *ngIf="showConfirmModal" (click)="cancelConfirm()">
+    <div class="modal-card" (click)="$event.stopPropagation()">
+      <ion-icon name="warning-outline" class="modal-icon" [class.danger]="confirmButtonClass === 'btn-danger'"></ion-icon>
+      <h3>{{ confirmTitle }}</h3>
+      <p [innerHTML]="confirmMessage"></p>
+      <div class="modal-actions">
+        <button class="btn-cancel" (click)="cancelConfirm()" [disabled]="confirming">Cancel</button>
+        <button [ngClass]="confirmButtonClass" (click)="executeConfirm()" [disabled]="confirming">
+          <ion-spinner *ngIf="confirming" name="crescent"></ion-spinner>
+          <span *ngIf="!confirming">{{ confirmButtonText }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Content -->
+  <div *ngIf="user && !loading">
+    <!-- Profile Header -->
+    <div class="profile-header">
+      <div class="avatar-large">{{ getInitials() }}</div>
+      <div class="profile-info">
+        <div class="name-row">
+          <h1>{{ getDisplayName() }}</h1>
+          <span class="role-badge" [class.admin]="user.role === 'admin'">{{ user.role || 'user' }}</span>
+        </div>
+        <p class="email">{{ user.email }}</p>
+        <div class="profile-meta">
+          <span *ngIf="user.gender"><ion-icon name="person-outline"></ion-icon> {{ user.gender }}</span>
+          <span *ngIf="user.age"><ion-icon name="calendar-outline"></ion-icon> {{ user.age }} years</span>
+          <span *ngIf="user.createdAt"><ion-icon name="time-outline"></ion-icon> Joined {{ formatDate(user.createdAt) }}</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn-edit" (click)="startEdit()" *ngIf="!editing">
+          <ion-icon name="create-outline"></ion-icon> Edit
+        </button>
+        <button class="btn-role" (click)="confirmToggleRole()" [class.demote]="user.role === 'admin'">
+          <ion-icon [name]="user.role === 'admin' ? 'remove-circle-outline' : 'shield-checkmark-outline'"></ion-icon>
+          {{ user.role === 'admin' ? 'Remove Admin' : 'Make Admin' }}
+        </button>
+        <button class="btn-delete" (click)="confirmDelete()">
+          <ion-icon name="trash-outline"></ion-icon> Delete
+        </button>
+      </div>
+    </div>
+
+    <!-- Success message -->
+    <div class="success-message" *ngIf="saveMessage">
+      <ion-icon name="checkmark-circle-outline"></ion-icon>
+      {{ saveMessage }}
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="quick-stats">
+      <div class="quick-stat">
+        <span class="qs-value">{{ speeches.length }}</span>
+        <span class="qs-label">Speeches</span>
+      </div>
+      <div class="quick-stat">
+        <span class="qs-value">{{ formatScore(getAverageScore()) }}</span>
+        <span class="qs-label">Avg Score</span>
+      </div>
+      <div class="quick-stat">
+        <span class="qs-value">{{ formatDuration(getTotalDuration()) }}</span>
+        <span class="qs-label">Total Practice</span>
+      </div>
+      <div class="quick-stat">
+        <span class="qs-value">Level {{ gamification?.level || 1 }}</span>
+        <span class="qs-label">{{ gamification?.totalXP || 0 }} XP</span>
+      </div>
+      <div class="quick-stat">
+        <span class="qs-value">{{ gamification?.currentStreak || 0 }}</span>
+        <span class="qs-label">Day Streak</span>
+      </div>
+      <div class="quick-stat">
+        <span class="qs-value">{{ badges?.unlockedBadges || 0 }}/{{ badges?.totalBadges || 0 }}</span>
+        <span class="qs-label">Badges</span>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button [class.active]="activeTab === 'overview'" (click)="activeTab = 'overview'">Overview</button>
+      <button [class.active]="activeTab === 'speeches'" (click)="activeTab = 'speeches'">Speeches</button>
+      <button [class.active]="activeTab === 'badges'" (click)="activeTab = 'badges'">Badges</button>
+    </div>
+
+    <!-- Overview Tab -->
+    <div class="tab-content" *ngIf="activeTab === 'overview'">
+      <div class="detail-grid">
+        <!-- Editing Form -->
+        <div class="detail-card" *ngIf="editing">
+          <h3>Edit Profile</h3>
+          <div class="edit-form">
+            <div class="edit-row">
+              <label>First Name</label>
+              <input type="text" [(ngModel)]="editForm.firstName" />
+            </div>
+            <div class="edit-row">
+              <label>Last Name</label>
+              <input type="text" [(ngModel)]="editForm.lastName" />
+            </div>
+            <div class="edit-row">
+              <label>Age</label>
+              <input type="number" [(ngModel)]="editForm.age" />
+            </div>
+            <div class="edit-row">
+              <label>Gender</label>
+              <select [(ngModel)]="editForm.gender">
+                <option value="">Not set</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="edit-row">
+              <label>Phone</label>
+              <input type="text" [(ngModel)]="editForm.phoneNumber" />
+            </div>
+            <div class="edit-row">
+              <label>Bio</label>
+              <textarea [(ngModel)]="editForm.bio" rows="3"></textarea>
+            </div>
+            <div class="edit-actions">
+              <button class="btn-cancel" (click)="cancelEdit()" [disabled]="saving">Cancel</button>
+              <button class="btn-save" (click)="saveEdit()" [disabled]="saving">
+                <ion-spinner *ngIf="saving" name="crescent"></ion-spinner>
+                <span *ngIf="!saving">Save Changes</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Profile Details (read-only) -->
+        <div class="detail-card" *ngIf="!editing">
+          <h3>Profile Details</h3>
+          <div class="detail-row">
+            <span class="detail-label">First Name</span>
+            <span class="detail-value">{{ user.firstName || 'Not set' }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Last Name</span>
+            <span class="detail-value">{{ user.lastName || 'Not set' }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Email</span>
+            <span class="detail-value">{{ user.email }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Phone</span>
+            <span class="detail-value">{{ user.phoneNumber || 'Not set' }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Role</span>
+            <span class="detail-value role-text" [class.admin-text]="user.role === 'admin'">{{ user.role || 'user' }}</span>
+          </div>
+          <div class="detail-row" *ngIf="user.bio">
+            <span class="detail-label">Bio</span>
+            <span class="detail-value">{{ user.bio }}</span>
+          </div>
+          <div class="detail-row" *ngIf="user.interests?.length">
+            <span class="detail-label">Interests</span>
+            <div class="tags">
+              <span class="tag" *ngFor="let interest of user.interests">{{ interest }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gamification (Edit Mode) -->
+        <div class="detail-card" *ngIf="editingGamification">
+          <h3>Edit Gamification</h3>
+          <div class="edit-form">
+            <div class="edit-row">
+              <label>Level</label>
+              <input type="number" [(ngModel)]="gamificationForm.level" min="1" />
+            </div>
+            <div class="edit-row">
+              <label>Current XP</label>
+              <input type="number" [(ngModel)]="gamificationForm.currentXP" min="0" />
+            </div>
+            <div class="edit-row">
+              <label>Total XP</label>
+              <input type="number" [(ngModel)]="gamificationForm.totalXP" min="0" />
+            </div>
+            <div class="edit-row">
+              <label>Current Streak</label>
+              <input type="number" [(ngModel)]="gamificationForm.currentStreak" min="0" />
+            </div>
+            <div class="edit-row">
+              <label>Longest Streak</label>
+              <input type="number" [(ngModel)]="gamificationForm.longestStreak" min="0" />
+            </div>
+            <div class="edit-actions">
+              <button class="btn-cancel" (click)="cancelGamificationEdit()" [disabled]="savingGamification">Cancel</button>
+              <button class="btn-save" (click)="saveGamificationEdit()" [disabled]="savingGamification">
+                <ion-spinner *ngIf="savingGamification" name="crescent"></ion-spinner>
+                <span *ngIf="!savingGamification">Save Changes</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Gamification (Read-only) -->
+        <div class="detail-card" *ngIf="!editingGamification">
+          <div class="card-header-row">
+            <h3>Gamification</h3>
+            <button class="btn-edit-small" (click)="startGamificationEdit()">
+              <ion-icon name="create-outline"></ion-icon> Edit
+            </button>
+          </div>
+          <div *ngIf="gamification">
+            <div class="detail-row">
+              <span class="detail-label">Level</span>
+              <span class="detail-value">{{ gamification.level }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Current XP</span>
+              <span class="detail-value">{{ gamification.currentXP }} / 100</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Total XP</span>
+              <span class="detail-value">{{ gamification.totalXP }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Current Streak</span>
+              <span class="detail-value">{{ gamification.currentStreak }} days</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Longest Streak</span>
+              <span class="detail-value">{{ gamification.longestStreak }} days</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Last Active</span>
+              <span class="detail-value">{{ formatDate(gamification.lastActivityDate) }}</span>
+            </div>
+          </div>
+          <div *ngIf="!gamification" class="no-data-text">
+            <p>No gamification data yet. Click Edit to initialize.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Speeches Tab -->
+    <div class="tab-content" *ngIf="activeTab === 'speeches'">
+      <div class="tab-header" *ngIf="speeches.length > 0">
+        <span class="tab-count">{{ speeches.length }} speech{{ speeches.length !== 1 ? 'es' : '' }}</span>
+        <button class="export-btn" (click)="exportSpeeches()">
+          <ion-icon name="download-outline"></ion-icon>
+          Export CSV
+        </button>
+      </div>
+      <div class="speeches-list" *ngIf="speeches.length > 0">
+        <div class="speech-card" *ngFor="let speech of speeches">
+          <div class="speech-header">
+            <span class="speech-type" [attr.data-type]="speech.speechType">{{ speech.speechType }}</span>
+            <div class="speech-header-right">
+              <span class="speech-date">{{ formatDate(speech.createdAt) }}</span>
+              <button class="btn-delete-small" (click)="confirmDeleteSpeech(speech.id)" title="Delete speech">
+                <ion-icon name="trash-outline"></ion-icon>
+              </button>
+            </div>
+          </div>
+          <div class="speech-scores">
+            <div class="score-item">
+              <span class="score-label">Overall</span>
+              <span class="score-value" [style.color]="getScoreColor(speech.scores.overall)">
+                {{ formatScore(speech.scores.overall) }}
+              </span>
+            </div>
+            <div class="score-item">
+              <span class="score-label">Pace</span>
+              <span class="score-value">{{ formatScore(speech.scores.speech_pace) }}</span>
+            </div>
+            <div class="score-item">
+              <span class="score-label">Clarity</span>
+              <span class="score-value">{{ formatScore(speech.scores.articulation_clarity) }}</span>
+            </div>
+            <div class="score-item">
+              <span class="score-label">Pitch</span>
+              <span class="score-value">{{ formatScore(speech.scores.pitch_variation) }}</span>
+            </div>
+            <div class="score-item">
+              <span class="score-label">Fluency</span>
+              <span class="score-value">{{ formatScore(speech.scores.pausing_fluency) }}</span>
+            </div>
+          </div>
+          <div class="speech-meta">
+            <span>{{ speech.wordCount }} words</span>
+            <span>{{ formatDuration(speech.duration) }}</span>
+            <span>{{ speech.averagePace.toFixed(0) }} WPM</span>
+          </div>
+          <div class="speech-transcript" *ngIf="speech.transcript && speech.transcript !== '[Transcript not available]'">
+            <p>{{ speech.transcript.substring(0, 200) }}{{ speech.transcript.length > 200 ? '...' : '' }}</p>
+          </div>
+        </div>
+      </div>
+      <div class="empty-state" *ngIf="speeches.length === 0">
+        <ion-icon name="mic-off-outline"></ion-icon>
+        <p>No speeches recorded yet</p>
+      </div>
+    </div>
+
+    <!-- Badges Tab -->
+    <div class="tab-content" *ngIf="activeTab === 'badges'">
+      <div *ngIf="badges">
+        <h3 class="section-title">Unlocked ({{ getUnlockedBadges().length }})</h3>
+        <div class="badges-grid" *ngIf="getUnlockedBadges().length > 0">
+          <div class="badge-card unlocked" *ngFor="let badge of getUnlockedBadges()">
+            <div class="badge-icon">
+              <ion-icon name="trophy"></ion-icon>
+            </div>
+            <span class="badge-name">{{ badge.name }}</span>
+            <span class="badge-desc">{{ badge.description }}</span>
+            <span class="badge-rarity" [attr.data-rarity]="badge.rarity">{{ badge.rarity }}</span>
+            <button class="badge-toggle-btn lock" (click)="confirmToggleBadge(badge)">
+              <ion-icon name="lock-closed-outline"></ion-icon> Lock
+            </button>
+          </div>
+        </div>
+
+        <h3 class="section-title" style="margin-top: 24px;">Locked ({{ getLockedBadges().length }})</h3>
+        <div class="badges-grid" *ngIf="getLockedBadges().length > 0">
+          <div class="badge-card locked" *ngFor="let badge of getLockedBadges()">
+            <div class="badge-icon locked-icon">
+              <ion-icon name="lock-closed"></ion-icon>
+            </div>
+            <span class="badge-name">{{ badge.name }}</span>
+            <span class="badge-desc">{{ badge.description }}</span>
+            <div class="badge-progress" *ngIf="badge.maxProgress > 0">
+              <div class="progress-bar">
+                <div class="progress-fill" [style.width.%]="(badge.progress / badge.maxProgress) * 100"></div>
+              </div>
+              <span class="progress-text">{{ badge.progress }}/{{ badge.maxProgress }}</span>
+            </div>
+            <button class="badge-toggle-btn unlock" (click)="confirmToggleBadge(badge)">
+              <ion-icon name="lock-open-outline"></ion-icon> Unlock
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="empty-state" *ngIf="!badges">
+        <ion-icon name="ribbon-outline"></ion-icon>
+        <p>No badge data available</p>
+      </div>
+    </div>
+  </div>
+</div>

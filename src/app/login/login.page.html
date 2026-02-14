@@ -1,0 +1,140 @@
+<div class="login-container">
+  <!-- Loading check -->
+  <div class="login-card" *ngIf="checkingSetup" style="text-align: center; padding: 60px;">
+    <ion-spinner name="crescent"></ion-spinner>
+    <p style="color: #6b7280; margin-top: 12px;">Loading...</p>
+  </div>
+
+  <!-- First-Time Setup / Create Admin -->
+  <div class="login-card" *ngIf="!checkingSetup && showSetup">
+    <div class="login-header">
+      <ion-icon name="rocket-outline" class="logo-icon"></ion-icon>
+      <h1>Welcome to StageReady</h1>
+      <p>Create your first admin account to get started</p>
+    </div>
+
+    <form (ngSubmit)="onSetup()">
+      <div class="form-row">
+        <div class="form-group half">
+          <label for="setupFirstName">First Name</label>
+          <input
+            id="setupFirstName"
+            type="text"
+            [(ngModel)]="setupFirstName"
+            name="setupFirstName"
+            placeholder="John"
+          />
+        </div>
+        <div class="form-group half">
+          <label for="setupLastName">Last Name</label>
+          <input
+            id="setupLastName"
+            type="text"
+            [(ngModel)]="setupLastName"
+            name="setupLastName"
+            placeholder="Doe"
+          />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="setupEmail">Email</label>
+        <input
+          id="setupEmail"
+          type="email"
+          [(ngModel)]="setupEmail"
+          name="setupEmail"
+          placeholder="admin@stageready.com"
+          autocomplete="email"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="setupPassword">Password</label>
+        <input
+          id="setupPassword"
+          type="password"
+          [(ngModel)]="setupPassword"
+          name="setupPassword"
+          placeholder="At least 6 characters"
+          autocomplete="new-password"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="setupConfirmPassword">Confirm Password</label>
+        <input
+          id="setupConfirmPassword"
+          type="password"
+          [(ngModel)]="setupConfirmPassword"
+          name="setupConfirmPassword"
+          placeholder="Repeat your password"
+          autocomplete="new-password"
+        />
+      </div>
+
+      <div class="error-message" *ngIf="errorMessage">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        {{ errorMessage }}
+      </div>
+
+      <button type="submit" class="login-btn setup-btn" [disabled]="loading">
+        <ion-spinner *ngIf="loading" name="crescent"></ion-spinner>
+        <span *ngIf="!loading">Create Admin Account</span>
+      </button>
+    </form>
+
+    <p class="toggle-link">
+      Already have an admin account? <a (click)="toggleMode()">Sign In</a>
+    </p>
+  </div>
+
+  <!-- Normal Login -->
+  <div class="login-card" *ngIf="!checkingSetup && !showSetup">
+    <div class="login-header">
+      <ion-icon name="shield-checkmark-outline" class="logo-icon"></ion-icon>
+      <h1>StageReady Admin</h1>
+      <p>Sign in with your admin account</p>
+    </div>
+
+    <form (ngSubmit)="onLogin()">
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input
+          id="email"
+          type="email"
+          [(ngModel)]="email"
+          name="email"
+          placeholder="admin@stageready.com"
+          autocomplete="email"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input
+          id="password"
+          type="password"
+          [(ngModel)]="password"
+          name="password"
+          placeholder="Enter your password"
+          autocomplete="current-password"
+        />
+      </div>
+
+      <div class="error-message" *ngIf="errorMessage">
+        <ion-icon name="alert-circle-outline"></ion-icon>
+        {{ errorMessage }}
+      </div>
+
+      <button type="submit" class="login-btn" [disabled]="loading">
+        <ion-spinner *ngIf="loading" name="crescent"></ion-spinner>
+        <span *ngIf="!loading">Sign In</span>
+      </button>
+    </form>
+
+    <p class="toggle-link">
+      Need to create an admin account? <a (click)="toggleMode()">Create Account</a>
+    </p>
+  </div>
+</div>

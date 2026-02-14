@@ -1,0 +1,173 @@
+<div class="speeches-page">
+  <div class="page-header">
+    <div>
+      <h1>Speeches</h1>
+      <p>All speech analysis sessions across users</p>
+    </div>
+    <div class="header-actions" *ngIf="!loading && !error">
+      <button class="export-btn" (click)="exportCSV()" *ngIf="filteredSpeeches.length > 0">
+        <ion-icon name="download-outline"></ion-icon>
+        Export CSV
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-container" *ngIf="loading">
+    <ion-spinner name="crescent"></ion-spinner>
+    <p>Loading speeches...</p>
+  </div>
+
+  <!-- Error -->
+  <div class="error-container" *ngIf="error && !loading">
+    <ion-icon name="alert-circle-outline"></ion-icon>
+    <p>{{ error }}</p>
+    <button class="retry-btn" (click)="loadSpeeches()">Retry</button>
+  </div>
+
+  <div *ngIf="!loading && !error">
+    <!-- Aggregate Stats -->
+    <div class="agg-stats">
+      <div class="agg-stat">
+        <span class="agg-value">{{ totalSpeeches }}</span>
+        <span class="agg-label">Speeches</span>
+      </div>
+      <div class="agg-stat">
+        <span class="agg-value" [style.color]="getScoreColor(avgOverall)">{{ formatScore(avgOverall) }}</span>
+        <span class="agg-label">Avg Overall</span>
+      </div>
+      <div class="agg-stat">
+        <span class="agg-value">{{ formatScore(avgPace) }}</span>
+        <span class="agg-label">Avg Pace</span>
+      </div>
+      <div class="agg-stat">
+        <span class="agg-value">{{ formatScore(avgClarity) }}</span>
+        <span class="agg-label">Avg Clarity</span>
+      </div>
+      <div class="agg-stat">
+        <span class="agg-value">{{ formatScore(avgPitch) }}</span>
+        <span class="agg-label">Avg Pitch</span>
+      </div>
+      <div class="agg-stat">
+        <span class="agg-value">{{ formatScore(avgFluency) }}</span>
+        <span class="agg-label">Avg Fluency</span>
+      </div>
+      <div class="agg-stat">
+        <span class="agg-value">{{ formatDuration(totalDuration) }}</span>
+        <span class="agg-label">Total Duration</span>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-section">
+      <div class="filter-row">
+        <div class="search-bar">
+          <ion-icon name="search-outline"></ion-icon>
+          <input
+            type="text"
+            [(ngModel)]="searchQuery"
+            (ngModelChange)="onFilterChange()"
+            placeholder="Search by user, email, transcript, or type..."
+          />
+        </div>
+
+        <div class="filter-group">
+          <select [(ngModel)]="filterType" (ngModelChange)="onFilterChange()">
+            <option value="all">All Types</option>
+            <option value="informative">Informative</option>
+            <option value="motivational">Motivational</option>
+            <option value="persuasive">Persuasive</option>
+          </select>
+
+          <select [(ngModel)]="filterUser" (ngModelChange)="onFilterChange()">
+            <option value="all">All Users</option>
+            <option *ngFor="let user of users" [value]="user.uid">
+              {{ user.firstName || '' }} {{ user.lastName || user.email }}
+            </option>
+          </select>
+
+          <select [(ngModel)]="sortBy" (ngModelChange)="onFilterChange()">
+            <option value="date">Sort by Date</option>
+            <option value="score">Sort by Score</option>
+            <option value="duration">Sort by Duration</option>
+            <option value="words">Sort by Words</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="filter-row">
+        <div class="date-range">
+          <label>From</label>
+          <input type="date" [(ngModel)]="dateFrom" (ngModelChange)="onFilterChange()" />
+        </div>
+        <div class="date-range">
+          <label>To</label>
+          <input type="date" [(ngModel)]="dateTo" (ngModelChange)="onFilterChange()" />
+        </div>
+        <div class="score-range">
+          <label>Min Score</label>
+          <input type="number" [(ngModel)]="minScore" (ngModelChange)="onFilterChange()" min="0" max="5" step="0.1" placeholder="0" />
+        </div>
+        <div class="score-range">
+          <label>Max Score</label>
+          <input type="number" [(ngModel)]="maxScore" (ngModelChange)="onFilterChange()" min="0" max="5" step="0.1" placeholder="5" />
+        </div>
+        <button class="clear-btn" *ngIf="hasActiveFilters" (click)="clearFilters()">
+          <ion-icon name="close-circle-outline"></ion-icon>
+          Clear Filters
+        </button>
+      </div>
+    </div>
+
+    <div class="results-count">
+      {{ filteredSpeeches.length }} result{{ filteredSpeeches.length !== 1 ? 's' : '' }}
+      <span *ngIf="hasActiveFilters"> (filtered from {{ speeches.length }})</span>
+    </div>
+
+    <!-- Speeches Table -->
+    <div class="table-container" *ngIf="filteredSpeeches.length > 0">
+      <table class="speeches-table">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Type</th>
+            <th>Overall</th>
+            <th>Pace</th>
+            <th>Clarity</th>
+            <th>Pitch</th>
+            <th>Fluency</th>
+            <th>Duration</th>
+            <th>Words</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let speech of filteredSpeeches" class="clickable-row" (click)="viewUser(speech.userId)">
+            <td class="user-cell">{{ speech.userName || speech.userId }}</td>
+            <td>
+              <span class="type-badge" [attr.data-type]="speech.speechType">{{ speech.speechType }}</span>
+            </td>
+            <td>
+              <span class="score" [style.color]="getScoreColor(speech.scores.overall)">
+                {{ formatScore(speech.scores.overall) }}
+              </span>
+            </td>
+            <td>{{ formatScore(speech.scores.speech_pace) }}</td>
+            <td>{{ formatScore(speech.scores.articulation_clarity) }}</td>
+            <td>{{ formatScore(speech.scores.pitch_variation) }}</td>
+            <td>{{ formatScore(speech.scores.pausing_fluency) }}</td>
+            <td>{{ formatDuration(speech.duration) }}</td>
+            <td>{{ speech.wordCount }}</td>
+            <td class="date-cell">{{ formatDate(speech.createdAt) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="empty-state" *ngIf="filteredSpeeches.length === 0">
+      <ion-icon name="mic-off-outline"></ion-icon>
+      <p>No speeches match your filters</p>
+      <button class="clear-btn" *ngIf="hasActiveFilters" (click)="clearFilters()">Clear Filters</button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,42 @@
+<div class="admin-layout" [class.collapsed]="sidebarCollapsed">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <ion-icon name="shield-checkmark" class="brand-icon"></ion-icon>
+      <span class="brand-text">StageReady</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a
+        *ngFor="let item of navItems"
+        [routerLink]="item.route"
+        class="nav-item"
+        [class.active]="isActive(item.route)"
+      >
+        <ion-icon [name]="item.icon"></ion-icon>
+        <span class="nav-label">{{ item.label }}</span>
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <a class="nav-item logout" (click)="onLogout()">
+        <ion-icon name="log-out-outline"></ion-icon>
+        <span class="nav-label">Logout</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <header class="top-bar">
+      <button class="toggle-btn" (click)="toggleSidebar()">
+        <ion-icon name="menu-outline"></ion-icon>
+      </button>
+      <h2 class="page-title">Admin Panel</h2>
+    </header>
+
+    <div class="content-area">
+      <ion-router-outlet></ion-router-outlet>
+    </div>
+  </div>
+</div>
