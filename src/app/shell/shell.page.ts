@@ -15,6 +15,7 @@ export class ShellPage {
     { label: 'Dashboard', icon: 'grid-outline', route: '/admin/dashboard' },
     { label: 'Users', icon: 'people-outline', route: '/admin/users' },
     { label: 'Speeches', icon: 'mic-outline', route: '/admin/speeches' },
+    { label: 'Badges', icon: 'ribbon-outline', route: '/admin/badges' },
   ];
 
   constructor(

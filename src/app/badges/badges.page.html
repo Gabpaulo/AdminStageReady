@@ -1,0 +1,247 @@
+<div class="badges-page">
+  <div class="page-header">
+    <div>
+      <h1>Badges</h1>
+      <p>Create and manage the badges users can earn</p>
+    </div>
+    <div class="header-actions" *ngIf="!loading">
+      <span class="badge-count">{{ filteredBadges.length }} badges</span>
+      <button class="seed-btn" (click)="confirmSeedDefaults()" *ngIf="canSeed" [disabled]="seedingInProgress">
+        <ion-spinner *ngIf="seedingInProgress" name="crescent"></ion-spinner>
+        <ion-icon *ngIf="!seedingInProgress" name="cloud-download-outline"></ion-icon>
+        <span *ngIf="!seedingInProgress">Seed Default Badges</span>
+      </button>
+      <button class="new-btn" (click)="startCreate()">
+        <ion-icon name="add-outline"></ion-icon>
+        New Badge
+      </button>
+    </div>
+  </div>
+
+  <!-- Success message -->
+  <div class="success-message" *ngIf="saveMessage">
+    <ion-icon name="checkmark-circle-outline"></ion-icon>
+    {{ saveMessage }}
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="filter-bar">
+    <div class="search-bar">
+      <ion-icon name="search-outline"></ion-icon>
+      <input
+        type="text"
+        [(ngModel)]="searchQuery"
+        (ngModelChange)="onFilterChange()"
+        placeholder="Search by name or description..."
+      />
+    </div>
+    <div class="filter-group">
+      <select [(ngModel)]="filterCategory" (ngModelChange)="onFilterChange()">
+        <option value="all">All Categories</option>
+        <option *ngFor="let c of categoryOptions" [value]="c">{{ formatLabel(c) }}</option>
+      </select>
+      <select [(ngModel)]="filterActive" (ngModelChange)="onFilterChange()">
+        <option value="all">All Statuses</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-container" *ngIf="loading">
+    <ion-spinner name="crescent"></ion-spinner>
+    <p>Loading badges...</p>
+  </div>
+
+  <!-- Error -->
+  <div class="error-container" *ngIf="error && !loading">
+    <ion-icon name="alert-circle-outline"></ion-icon>
+    <p>{{ error }}</p>
+    <button class="retry-btn" (click)="loadBadges()">Retry</button>
+  </div>
+
+  <!-- Badges Table -->
+  <div class="table-container" *ngIf="!loading && !error">
+    <table class="badges-table" *ngIf="filteredBadges.length > 0">
+      <thead>
+        <tr>
+          <th>Badge</th>
+          <th>Category</th>
+          <th>Rarity</th>
+          <th>Max Progress</th>
+          <th>Criteria</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let badge of filteredBadges">
+          <td>
+            <div class="badge-cell">
+              <img *ngIf="badge.icon" [src]="badge.icon" class="badge-thumb" (error)="onThumbError($event)" />
+              <div *ngIf="!badge.icon" class="badge-thumb-placeholder">
+                <ion-icon name="ribbon-outline"></ion-icon>
+              </div>
+              <div>
+                <div class="badge-name">{{ badge.name }}</div>
+                <div class="badge-desc">{{ badge.description }}</div>
+              </div>
+            </div>
+          </td>
+          <td>{{ formatLabel(badge.category) }}</td>
+          <td>
+            <span class="rarity-badge" [attr.data-rarity]="badge.rarity">{{ formatLabel(badge.rarity) }}</span>
+          </td>
+          <td>{{ badge.maxProgress }}</td>
+          <td class="criteria-cell">{{ formatCriteria(badge.criteria) }}</td>
+          <td>
+            <span class="status-badge" [class.inactive]="badge.active === false">
+              {{ badge.active === false ? 'Inactive' : 'Active' }}
+            </span>
+          </td>
+          <td>
+            <div class="row-actions">
+              <button class="edit-btn" (click)="startEdit(badge)">
+                <ion-icon name="create-outline"></ion-icon>
+                Edit
+              </button>
+              <button class="toggle-btn" [class.reactivate]="badge.active === false" (click)="confirmToggleActive(badge)">
+                <ion-icon [name]="badge.active === false ? 'checkmark-circle-outline' : 'ban-outline'"></ion-icon>
+                {{ badge.active === false ? 'Reactivate' : 'Deactivate' }}
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="empty-state" *ngIf="filteredBadges.length === 0">
+      <ion-icon name="ribbon-outline"></ion-icon>
+      <p *ngIf="badges.length === 0">No badges yet. Seed the defaults or create a new one to get started.</p>
+      <p *ngIf="badges.length > 0">No badges match your filters.</p>
+    </div>
+  </div>
+
+  <!-- Confirmation Modal -->
+  <div class="modal-overlay" *ngIf="showConfirmModal" (click)="cancelConfirm()">
+    <div class="modal-card" (click)="$event.stopPropagation()">
+      <ion-icon name="warning-outline" class="modal-icon" [class.danger]="confirmButtonClass === 'btn-danger'"></ion-icon>
+      <h3>{{ confirmTitle }}</h3>
+      <p [innerHTML]="confirmMessage"></p>
+      <div class="modal-actions">
+        <button class="btn-cancel" (click)="cancelConfirm()" [disabled]="confirming">Cancel</button>
+        <button [ngClass]="confirmButtonClass" (click)="executeConfirm()" [disabled]="confirming">
+          <ion-spinner *ngIf="confirming" name="crescent"></ion-spinner>
+          <span *ngIf="!confirming">{{ confirmButtonText }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create / Edit Form Modal -->
+  <div class="modal-overlay" *ngIf="showForm" (click)="cancelForm()">
+    <div class="modal-card form-modal-card" (click)="$event.stopPropagation()">
+      <h3>{{ formMode === 'create' ? 'New Badge' : 'Edit Badge' }}</h3>
+
+      <div class="form-error" *ngIf="formError">{{ formError }}</div>
+
+      <div class="edit-form">
+        <div class="edit-row">
+          <label>Name</label>
+          <input type="text" [(ngModel)]="formModel.name" placeholder="e.g. First Steps" />
+        </div>
+        <div class="edit-row">
+          <label>Description</label>
+          <textarea [(ngModel)]="formModel.description" rows="2" placeholder="What does the user need to do?"></textarea>
+        </div>
+        <div class="edit-row">
+          <label>Icon URL</label>
+          <input type="text" [(ngModel)]="formModel.icon" (ngModelChange)="onIconChange()" placeholder="https://..." />
+          <div class="icon-preview" *ngIf="formModel.icon">
+            <img *ngIf="!iconPreviewBroken" [src]="formModel.icon" (error)="onIconPreviewError()" />
+            <div *ngIf="iconPreviewBroken" class="icon-preview-broken">
+              <ion-icon name="image-outline"></ion-icon>
+              Couldn't load image
+            </div>
+          </div>
+        </div>
+        <div class="edit-row-group">
+          <div class="edit-row">
+            <label>Category</label>
+            <select [(ngModel)]="formModel.category">
+              <option *ngFor="let c of categoryOptions" [value]="c">{{ formatLabel(c) }}</option>
+            </select>
+          </div>
+          <div class="edit-row">
+            <label>Rarity</label>
+            <select [(ngModel)]="formModel.rarity">
+              <option *ngFor="let r of rarityOptions" [value]="r">{{ formatLabel(r) }}</option>
+            </select>
+          </div>
+          <div class="edit-row">
+            <label>Max Progress</label>
+            <input type="number" min="1" [(ngModel)]="formModel.maxProgress" />
+          </div>
+        </div>
+
+        <div class="edit-row" *ngIf="formMode === 'edit'">
+          <label class="checkbox-label">
+            <input type="checkbox" [(ngModel)]="formModel.active" />
+            Active
+          </label>
+        </div>
+
+        <fieldset class="criteria-fieldset" *ngIf="formModel.criteria">
+          <legend>Unlock Criteria</legend>
+
+          <div class="edit-row">
+            <label>Type</label>
+            <select [(ngModel)]="formModel.criteria.type" (ngModelChange)="onCriteriaTypeChange()">
+              <option *ngFor="let t of criteriaTypeOptions" [value]="t">{{ formatLabel(t) }}</option>
+            </select>
+          </div>
+
+          <div class="edit-row">
+            <label>Value</label>
+            <input type="number" min="1" [(ngModel)]="formModel.criteria.value" />
+          </div>
+
+          <div class="edit-row" *ngIf="formModel.criteria.type === 'speech_count' || formModel.criteria.type === 'consecutive_days' || formModel.criteria.type === 'total_days'">
+            <label>Condition (default is "at least")</label>
+            <select [(ngModel)]="formModel.criteria.condition">
+              <option [ngValue]="undefined">At least (default)</option>
+              <option *ngFor="let c of conditionOptions" [ngValue]="c">{{ formatLabel(c) }}</option>
+            </select>
+          </div>
+
+          <div class="edit-row" *ngIf="formModel.criteria.type === 'rating_achievement' || formModel.criteria.type === 'profile_completion'">
+            <label>Rating Type</label>
+            <select [(ngModel)]="formModel.criteria.ratingType">
+              <option *ngFor="let rt of ratingTypeOptions" [value]="rt">{{ formatLabel(rt) }}</option>
+            </select>
+          </div>
+
+          <div class="edit-row" *ngIf="formModel.criteria.type === 'rating_achievement'">
+            <label>Rating Value</label>
+            <select [(ngModel)]="formModel.criteria.ratingValue">
+              <option *ngFor="let rv of ratingValueOptions" [value]="rv">{{ formatLabel(rv) }}</option>
+            </select>
+          </div>
+
+          <p class="criteria-hint" *ngIf="formModel.criteria.type === 'time_based'">
+            Time-based criteria currently only supports "after 10 PM" in the app - the value above is not used yet.
+          </p>
+        </fieldset>
+
+        <div class="edit-actions">
+          <button class="btn-cancel" (click)="cancelForm()" [disabled]="saving">Cancel</button>
+          <button class="btn-save" (click)="saveForm()" [disabled]="saving">
+            <ion-spinner *ngIf="saving" name="crescent"></ion-spinner>
+            <span *ngIf="!saving">{{ formMode === 'create' ? 'Create Badge' : 'Save Changes' }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

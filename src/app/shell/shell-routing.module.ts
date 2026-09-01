@@ -24,6 +24,10 @@ const routes: Routes = [
         loadChildren: () => import('../speeches/speeches.module').then(m => m.SpeechesPageModule),
       },
       {
+        path: 'badges',
+        loadChildren: () => import('../badges/badges.module').then(m => m.BadgesPageModule),
+      },
+      {
         path: '',
         redirectTo: 'dashboard',
         pathMatch: 'full',

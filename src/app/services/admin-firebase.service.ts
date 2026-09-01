@@ -66,6 +66,26 @@ export interface UserBadgeProgress {
   badges: any[];
 }
 
+export interface BadgeDefinition {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: 'practice' | 'progress' | 'performance' | 'special' | 'learning';
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  maxProgress: number;
+  active: boolean;
+  criteria: {
+    type: 'speech_count' | 'consecutive_days' | 'total_days' | 'rating_achievement' | 'profile_completion' | 'time_based';
+    value: number;
+    condition?: 'greater_than' | 'equal_to' | 'less_than';
+    ratingType?: 'clarity' | 'pace' | 'tone' | 'overall' | 'profile' | 'interests' | 'bio';
+    ratingValue?: 'excellent' | 'good' | 'fair' | 'poor';
+  };
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 export interface DashboardStats {
   totalUsers: number;
   totalSpeeches: number;
@@ -358,6 +378,95 @@ export class AdminFirebaseService {
       unlockedBadges: unlockedCount,
       totalBadges: badges.length,
     });
+  }
+
+  // ── Badge Definitions ──────────────────────────────────
+
+  private mapBadgeDefinitionDoc(d: any): BadgeDefinition {
+    const data = d.data();
+    return {
+      id: d.id,
+      name: data['name'] || '',
+      description: data['description'] || '',
+      icon: data['icon'] || '',
+      category: data['category'] || 'practice',
+      rarity: data['rarity'] || 'common',
+      maxProgress: data['maxProgress'] || 1,
+      active: data['active'] !== false,
+      criteria: data['criteria'] || { type: 'speech_count', value: 1 },
+      createdAt: data['createdAt'] instanceof Timestamp ? data['createdAt'].toDate() : data['createdAt'],
+      updatedAt: data['updatedAt'] instanceof Timestamp ? data['updatedAt'].toDate() : data['updatedAt'],
+    };
+  }
+
+  async getAllBadgeDefinitions(): Promise<BadgeDefinition[]> {
+    const badgesRef = collection(this.firestore, 'badgeDefinitions');
+    const snapshot = await getDocs(badgesRef);
+    return snapshot.docs.map(d => this.mapBadgeDefinitionDoc(d));
+  }
+
+  async getBadgeDefinition(id: string): Promise<BadgeDefinition | null> {
+    const docRef = doc(this.firestore, `badgeDefinitions/${id}`);
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return null;
+    return this.mapBadgeDefinitionDoc(docSnap);
+  }
+
+  private async generateBadgeId(name: string): Promise<string> {
+    const base = name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'badge';
+
+    let candidate = base;
+    let suffix = 2;
+    while ((await getDoc(doc(this.firestore, `badgeDefinitions/${candidate}`))).exists()) {
+      candidate = `${base}_${suffix}`;
+      suffix++;
+    }
+    return candidate;
+  }
+
+  async createBadgeDefinition(data: Omit<BadgeDefinition, 'id' | 'active' | 'createdAt' | 'updatedAt'>): Promise<string> {
+    const id = await this.generateBadgeId(data.name);
+    await setDoc(doc(this.firestore, `badgeDefinitions/${id}`), {
+      ...data,
+      id,
+      active: true,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+    return id;
+  }
+
+  async createBadgeDefinitionWithId(id: string, data: Omit<BadgeDefinition, 'id' | 'active' | 'createdAt' | 'updatedAt'>): Promise<void> {
+    await setDoc(doc(this.firestore, `badgeDefinitions/${id}`), {
+      ...data,
+      id,
+      active: true,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+  }
+
+  async updateBadgeDefinition(id: string, data: Partial<Omit<BadgeDefinition, 'id' | 'createdAt'>>): Promise<void> {
+    const badgeRef = doc(this.firestore, `badgeDefinitions/${id}`);
+    const updateData: any = { updatedAt: Timestamp.now() };
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.icon !== undefined) updateData.icon = data.icon;
+    if (data.category !== undefined) updateData.category = data.category;
+    if (data.rarity !== undefined) updateData.rarity = data.rarity;
+    if (data.maxProgress !== undefined) updateData.maxProgress = data.maxProgress;
+    if (data.criteria !== undefined) updateData.criteria = data.criteria;
+    if (data.active !== undefined) updateData.active = data.active;
+    await updateDoc(badgeRef, updateData);
+  }
+
+  async setBadgeDefinitionActive(id: string, active: boolean): Promise<void> {
+    const badgeRef = doc(this.firestore, `badgeDefinitions/${id}`);
+    await updateDoc(badgeRef, { active, updatedAt: Timestamp.now() });
   }
 
   // ── Dashboard Stats ────────────────────────────────────
