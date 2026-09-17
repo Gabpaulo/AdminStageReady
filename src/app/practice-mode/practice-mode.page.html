@@ -1,0 +1,269 @@
+<div class="practice-page">
+  <div class="page-header">
+    <div>
+      <h1>Practice Mode</h1>
+      <p>Create and manage the scripts users practice with</p>
+    </div>
+    <div class="header-actions" *ngIf="!loading">
+      <span class="script-count">{{ filteredScripts.length }} scripts</span>
+      <button class="seed-btn" (click)="confirmSeedDefaults()" [disabled]="seedingInProgress">
+        <ion-spinner *ngIf="seedingInProgress" name="crescent"></ion-spinner>
+        <ion-icon *ngIf="!seedingInProgress" name="cloud-download-outline"></ion-icon>
+        <span *ngIf="!seedingInProgress">Seed Default Scripts</span>
+      </button>
+      <button class="new-btn" (click)="startCreate()">
+        <ion-icon name="add-outline"></ion-icon>
+        New Script
+      </button>
+    </div>
+  </div>
+
+  <!-- Success message -->
+  <div class="success-message" *ngIf="saveMessage">
+    <ion-icon name="checkmark-circle-outline"></ion-icon>
+    {{ saveMessage }}
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="filter-bar">
+    <div class="search-bar">
+      <ion-icon name="search-outline"></ion-icon>
+      <input
+        type="text"
+        [(ngModel)]="searchQuery"
+        (ngModelChange)="onFilterChange()"
+        placeholder="Search by title, id, or script text..."
+      />
+    </div>
+    <div class="filter-group">
+      <select [(ngModel)]="filterCategory" (ngModelChange)="onFilterChange()">
+        <option value="all">All Categories</option>
+        <option *ngFor="let c of categoryOptions" [value]="c">{{ formatLabel(c) }}</option>
+      </select>
+      <select [(ngModel)]="filterDifficulty" (ngModelChange)="onFilterChange()">
+        <option value="all">All Difficulties</option>
+        <option *ngFor="let d of difficultyOptions" [value]="d">{{ formatLabel(d) }}</option>
+      </select>
+      <select [(ngModel)]="filterActive" (ngModelChange)="onFilterChange()">
+        <option value="all">All Statuses</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-container" *ngIf="loading">
+    <ion-spinner name="crescent"></ion-spinner>
+    <p>Loading practice scripts...</p>
+  </div>
+
+  <!-- Error -->
+  <div class="error-container" *ngIf="error && !loading">
+    <ion-icon name="alert-circle-outline"></ion-icon>
+    <p>{{ error }}</p>
+    <button class="retry-btn" (click)="loadScripts()">Retry</button>
+  </div>
+
+  <!-- Scripts Table -->
+  <div class="table-container" *ngIf="!loading && !error">
+    <table class="scripts-table" *ngIf="filteredScripts.length > 0">
+      <thead>
+        <tr>
+          <th class="col-order">#</th>
+          <th>Script</th>
+          <th>Category</th>
+          <th>Difficulty</th>
+          <th class="col-num">Words</th>
+          <th class="col-num">WPM</th>
+          <th>Target Dimensions</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let script of filteredScripts">
+          <td class="col-order">{{ script.sortOrder }}</td>
+          <td>
+            <div class="script-title">{{ script.title }}</div>
+            <div class="script-id">{{ script.id }}</div>
+            <div class="script-preview">{{ preview(script.rawText) }}</div>
+          </td>
+          <td>{{ formatLabel(script.category) }}</td>
+          <td>
+            <span class="difficulty-badge" [attr.data-difficulty]="script.difficulty">
+              {{ formatLabel(script.difficulty) }}
+            </span>
+          </td>
+          <td class="col-num">{{ wordCount(script.rawText) }}</td>
+          <td class="col-num">{{ script.targetWpmRange.min }}–{{ script.targetWpmRange.max }}</td>
+          <td class="dims-cell">{{ formatDimensions(script) }}</td>
+          <td>
+            <span class="status-badge" [class.inactive]="script.active === false">
+              {{ script.active === false ? 'Inactive' : 'Active' }}
+            </span>
+          </td>
+          <td>
+            <div class="row-actions">
+              <button class="edit-btn" (click)="startEdit(script)">
+                <ion-icon name="create-outline"></ion-icon>
+                Edit
+              </button>
+              <button class="toggle-btn" [class.reactivate]="script.active === false" (click)="confirmToggleActive(script)">
+                <ion-icon [name]="script.active === false ? 'checkmark-circle-outline' : 'ban-outline'"></ion-icon>
+                {{ script.active === false ? 'Reactivate' : 'Deactivate' }}
+              </button>
+              <button class="delete-btn" (click)="confirmDelete(script)">
+                <ion-icon name="trash-outline"></ion-icon>
+                Delete
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="empty-state" *ngIf="filteredScripts.length === 0">
+      <ion-icon name="document-text-outline"></ion-icon>
+      <p *ngIf="scripts.length === 0">No practice scripts yet. Seed the {{ seedScriptCount }} defaults or create a new one to get started.</p>
+      <p *ngIf="scripts.length > 0">No scripts match your filters.</p>
+    </div>
+  </div>
+
+  <!-- Confirmation Modal -->
+  <div class="modal-overlay" *ngIf="showConfirmModal" (click)="cancelConfirm()">
+    <div class="modal-card" (click)="$event.stopPropagation()">
+      <ion-icon name="warning-outline" class="modal-icon" [class.danger]="confirmButtonClass === 'btn-danger'"></ion-icon>
+      <h3>{{ confirmTitle }}</h3>
+      <p [innerHTML]="confirmMessage"></p>
+      <div class="modal-actions">
+        <button class="btn-cancel" (click)="cancelConfirm()" [disabled]="confirming">Cancel</button>
+        <button [ngClass]="confirmButtonClass" (click)="executeConfirm()" [disabled]="confirming">
+          <ion-spinner *ngIf="confirming" name="crescent"></ion-spinner>
+          <span *ngIf="!confirming">{{ confirmButtonText }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create / Edit Form Modal -->
+  <div class="modal-overlay" *ngIf="showForm" (click)="cancelForm()">
+    <div class="modal-card form-modal-card" (click)="$event.stopPropagation()">
+      <h3>{{ formMode === 'create' ? 'New Practice Script' : 'Edit Practice Script' }}</h3>
+
+      <div class="form-error" *ngIf="formError">{{ formError }}</div>
+
+      <div class="edit-form">
+        <div class="edit-row">
+          <label>Title</label>
+          <input type="text" [(ngModel)]="formModel.title" placeholder="e.g. The Science of Sleep" />
+        </div>
+
+        <div class="edit-row-group">
+          <div class="edit-row">
+            <label>Category</label>
+            <select [(ngModel)]="formModel.category">
+              <option *ngFor="let c of categoryOptions" [value]="c">{{ formatLabel(c) }}</option>
+            </select>
+          </div>
+          <div class="edit-row">
+            <label>Difficulty</label>
+            <select [(ngModel)]="formModel.difficulty">
+              <option *ngFor="let d of difficultyOptions" [value]="d">{{ formatLabel(d) }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="edit-row">
+          <label>Script Text</label>
+          <textarea [(ngModel)]="formModel.rawText" rows="10" placeholder="The full text the user will read aloud..."></textarea>
+          <p class="field-hint">
+            {{ formWordCount }} words. Plain prose only — stage directions or bracketed notes are counted
+            as missed words by the accuracy scorer.
+          </p>
+        </div>
+
+        <div class="edit-row-group" *ngIf="formModel.targetWpmRange">
+          <div class="edit-row">
+            <label>Target WPM (min)</label>
+            <input type="number" min="60" max="250" [(ngModel)]="formModel.targetWpmRange.min" />
+          </div>
+          <div class="edit-row">
+            <label>Target WPM (max)</label>
+            <input type="number" min="60" max="250" [(ngModel)]="formModel.targetWpmRange.max" />
+          </div>
+          <div class="edit-row">
+            <label>Duration (seconds)</label>
+            <div class="duration-field">
+              <input type="number" min="10" max="600" [(ngModel)]="formModel.estimatedDuration" />
+              <button type="button" class="recompute-btn" (click)="recomputeDuration()" title="Estimate from word count">
+                <ion-icon name="calculator-outline"></ion-icon>
+              </button>
+            </div>
+            <p class="field-hint">≈ {{ ((formModel.estimatedDuration || 0) / 60).toFixed(1) }} min</p>
+          </div>
+        </div>
+
+        <fieldset class="dim-fieldset">
+          <legend>Target Dimensions</legend>
+          <p class="field-hint">
+            The session's <strong>overall</strong> score is the average of the dimensions selected here.
+            Pick at least one.
+          </p>
+          <div class="dim-checks">
+            <label class="dim-check" *ngFor="let d of dimensionOptions">
+              <input type="checkbox" [checked]="isDimensionSelected(d)" (change)="toggleDimension(d)" />
+              {{ formatLabel(d) }}
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="dim-fieldset">
+          <legend>Demand Levels</legend>
+          <p class="field-hint">How much this script stresses each area. Used by the recommendation model.</p>
+          <div class="edit-row-group">
+            <div class="edit-row">
+              <label>Pausing</label>
+              <select [(ngModel)]="formModel.scriptTargetPausing">
+                <option *ngFor="let l of levelOptions" [value]="l">{{ formatLabel(l) }}</option>
+              </select>
+            </div>
+            <div class="edit-row">
+              <label>Pitch</label>
+              <select [(ngModel)]="formModel.scriptTargetPitch">
+                <option *ngFor="let l of levelOptions" [value]="l">{{ formatLabel(l) }}</option>
+              </select>
+            </div>
+            <div class="edit-row">
+              <label>Filler</label>
+              <select [(ngModel)]="formModel.scriptTargetFiller">
+                <option *ngFor="let l of levelOptions" [value]="l">{{ formatLabel(l) }}</option>
+              </select>
+            </div>
+            <div class="edit-row">
+              <label>Articulation</label>
+              <select [(ngModel)]="formModel.scriptTargetArticulation">
+                <option *ngFor="let l of levelOptions" [value]="l">{{ formatLabel(l) }}</option>
+              </select>
+            </div>
+          </div>
+        </fieldset>
+
+        <div class="edit-row" *ngIf="formMode === 'edit'">
+          <label class="checkbox-label">
+            <input type="checkbox" [(ngModel)]="formModel.active" />
+            Active
+          </label>
+        </div>
+
+        <div class="edit-actions">
+          <button class="btn-cancel" (click)="cancelForm()" [disabled]="saving">Cancel</button>
+          <button class="btn-save" (click)="saveForm()" [disabled]="saving">
+            <ion-spinner *ngIf="saving" name="crescent"></ion-spinner>
+            <span *ngIf="!saving">{{ formMode === 'create' ? 'Create Script' : 'Save Changes' }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

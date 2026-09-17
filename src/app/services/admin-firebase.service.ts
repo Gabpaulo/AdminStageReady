@@ -6,7 +6,7 @@ import {
 } from 'firebase/auth';
 import {
   getFirestore, Firestore, collection, getDocs, doc, getDoc, setDoc,
-  query, orderBy, limit, Timestamp, deleteDoc, updateDoc
+  query, orderBy, limit, Timestamp, deleteDoc, updateDoc, writeBatch
 } from 'firebase/firestore';
 import { getStorage, FirebaseStorage, ref, deleteObject, listAll } from 'firebase/storage';
 import { environment } from '../../environments/environment';
@@ -85,6 +85,38 @@ export interface BadgeDefinition {
   createdAt?: Date;
   updatedAt?: Date;
 }
+
+export type DimensionKey =
+  'speech_pace' | 'pausing_fluency' | 'loud_control' |
+  'pitch_variation' | 'articulation_clarity' |
+  'expressive_emph' | 'filler_words_score';
+
+export type ScriptTargetLevel = 'low' | 'medium' | 'high';
+
+export interface PracticeScript {
+  id: string;
+  title: string;
+  category: 'informative' | 'persuasive' | 'motivational';
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  rawText: string;
+  /** Seconds at target WPM */
+  estimatedDuration: number;
+  /** Which of the 7 dimensions this script specifically trains */
+  targetDimensions: DimensionKey[];
+  targetWpmRange: { min: number; max: number };
+  /** Demand level per dimension — used for the supervised recommendation model */
+  scriptTargetPausing: ScriptTargetLevel;
+  scriptTargetPitch: ScriptTargetLevel;
+  scriptTargetFiller: ScriptTargetLevel;
+  scriptTargetArticulation: ScriptTargetLevel;
+  /** Display order — document ids sort lexicographically, which scrambles info-1..info-15 */
+  sortOrder: number;
+  active: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export type PracticeScriptInput = Omit<PracticeScript, 'id' | 'active' | 'createdAt' | 'updatedAt'>;
 
 export interface DashboardStats {
   totalUsers: number;
@@ -467,6 +499,137 @@ export class AdminFirebaseService {
   async setBadgeDefinitionActive(id: string, active: boolean): Promise<void> {
     const badgeRef = doc(this.firestore, `badgeDefinitions/${id}`);
     await updateDoc(badgeRef, { active, updatedAt: Timestamp.now() });
+  }
+
+  // ── Practice Scripts ───────────────────────────────────
+
+  private mapPracticeScriptDoc(d: any): PracticeScript {
+    const data = d.data();
+    return {
+      id: d.id,
+      title: data['title'] || '',
+      category: data['category'] || 'informative',
+      difficulty: data['difficulty'] || 'beginner',
+      rawText: data['rawText'] || '',
+      estimatedDuration: data['estimatedDuration'] || 0,
+      targetDimensions: Array.isArray(data['targetDimensions']) ? data['targetDimensions'] : [],
+      targetWpmRange: data['targetWpmRange'] || { min: 110, max: 130 },
+      scriptTargetPausing: data['scriptTargetPausing'] || 'medium',
+      scriptTargetPitch: data['scriptTargetPitch'] || 'medium',
+      scriptTargetFiller: data['scriptTargetFiller'] || 'medium',
+      scriptTargetArticulation: data['scriptTargetArticulation'] || 'medium',
+      sortOrder: typeof data['sortOrder'] === 'number' ? data['sortOrder'] : 0,
+      active: data['active'] !== false,
+      createdAt: data['createdAt'] instanceof Timestamp ? data['createdAt'].toDate() : data['createdAt'],
+      updatedAt: data['updatedAt'] instanceof Timestamp ? data['updatedAt'].toDate() : data['updatedAt'],
+    };
+  }
+
+  async getAllPracticeScripts(): Promise<PracticeScript[]> {
+    const scriptsRef = collection(this.firestore, 'practiceScripts');
+    const snapshot = await getDocs(scriptsRef);
+    return snapshot.docs.map(d => this.mapPracticeScriptDoc(d));
+  }
+
+  async getPracticeScript(id: string): Promise<PracticeScript | null> {
+    const docRef = doc(this.firestore, `practiceScripts/${id}`);
+    const docSnap = await getDoc(docRef);
+    if (!docSnap.exists()) return null;
+    return this.mapPracticeScriptDoc(docSnap);
+  }
+
+  private async generatePracticeScriptId(title: string): Promise<string> {
+    const base = title
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'script';
+
+    let candidate = base;
+    let suffix = 2;
+    while ((await getDoc(doc(this.firestore, `practiceScripts/${candidate}`))).exists()) {
+      candidate = `${base}_${suffix}`;
+      suffix++;
+    }
+    return candidate;
+  }
+
+  /**
+   * sortOrder is assigned here rather than supplied by the caller — a script
+   * without one would sink to the end of the list in both apps.
+   */
+  async createPracticeScript(data: Omit<PracticeScriptInput, 'sortOrder'>): Promise<string> {
+    const id = await this.generatePracticeScriptId(data.title);
+    const sortOrder = (await this.getMaxPracticeScriptSortOrder()) + 1;
+    await setDoc(doc(this.firestore, `practiceScripts/${id}`), {
+      ...data, id, sortOrder, active: true,
+      createdAt: Timestamp.now(), updatedAt: Timestamp.now(),
+    });
+    return id;
+  }
+
+  async createPracticeScriptWithId(id: string, data: PracticeScriptInput): Promise<void> {
+    await setDoc(doc(this.firestore, `practiceScripts/${id}`), {
+      ...data, id, active: true,
+      createdAt: Timestamp.now(), updatedAt: Timestamp.now(),
+    });
+  }
+
+  /**
+   * Writes many scripts in a single atomic batch. Used by seeding: a partial seed
+   * would leave scripts stranded under their original ids, so all-or-nothing is
+   * the safe failure mode. Firestore caps a batch at 500 ops; the seed is 45.
+   */
+  async createPracticeScriptsBatch(
+    entries: Array<{ id: string; data: PracticeScriptInput }>
+  ): Promise<void> {
+    if (entries.length === 0) return;
+    const batch = writeBatch(this.firestore);
+    const now = Timestamp.now();
+    for (const entry of entries) {
+      batch.set(doc(this.firestore, `practiceScripts/${entry.id}`), {
+        ...entry.data, id: entry.id, active: true,
+        createdAt: now, updatedAt: now,
+      });
+    }
+    await batch.commit();
+  }
+
+  /** Highest sortOrder currently in use, so new scripts append to the end. */
+  async getMaxPracticeScriptSortOrder(): Promise<number> {
+    const scriptsRef = collection(this.firestore, 'practiceScripts');
+    const snapshot = await getDocs(query(scriptsRef, orderBy('sortOrder', 'desc'), limit(1)));
+    if (snapshot.empty) return 0;
+    const value = snapshot.docs[0].data()['sortOrder'];
+    return typeof value === 'number' ? value : 0;
+  }
+
+  async updatePracticeScript(id: string, data: Partial<Omit<PracticeScript, 'id' | 'createdAt'>>): Promise<void> {
+    const scriptRef = doc(this.firestore, `practiceScripts/${id}`);
+    const updateData: any = { updatedAt: Timestamp.now() };
+    if (data.title !== undefined) updateData.title = data.title;
+    if (data.category !== undefined) updateData.category = data.category;
+    if (data.difficulty !== undefined) updateData.difficulty = data.difficulty;
+    if (data.rawText !== undefined) updateData.rawText = data.rawText;
+    if (data.estimatedDuration !== undefined) updateData.estimatedDuration = data.estimatedDuration;
+    if (data.targetDimensions !== undefined) updateData.targetDimensions = data.targetDimensions;
+    if (data.targetWpmRange !== undefined) updateData.targetWpmRange = data.targetWpmRange;
+    if (data.scriptTargetPausing !== undefined) updateData.scriptTargetPausing = data.scriptTargetPausing;
+    if (data.scriptTargetPitch !== undefined) updateData.scriptTargetPitch = data.scriptTargetPitch;
+    if (data.scriptTargetFiller !== undefined) updateData.scriptTargetFiller = data.scriptTargetFiller;
+    if (data.scriptTargetArticulation !== undefined) updateData.scriptTargetArticulation = data.scriptTargetArticulation;
+    if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
+    if (data.active !== undefined) updateData.active = data.active;
+    await updateDoc(scriptRef, updateData);
+  }
+
+  async setPracticeScriptActive(id: string, active: boolean): Promise<void> {
+    const scriptRef = doc(this.firestore, `practiceScripts/${id}`);
+    await updateDoc(scriptRef, { active, updatedAt: Timestamp.now() });
+  }
+
+  async deletePracticeScript(id: string): Promise<void> {
+    await deleteDoc(doc(this.firestore, `practiceScripts/${id}`));
   }
 
   // ── Dashboard Stats ────────────────────────────────────

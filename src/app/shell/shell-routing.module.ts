@@ -24,6 +24,10 @@ const routes: Routes = [
         loadChildren: () => import('../speeches/speeches.module').then(m => m.SpeechesPageModule),
       },
       {
+        path: 'practice-mode',
+        loadChildren: () => import('../practice-mode/practice-mode.module').then(m => m.PracticeModePageModule),
+      },
+      {
         path: 'badges',
         loadChildren: () => import('../badges/badges.module').then(m => m.BadgesPageModule),
       },
