@@ -79,7 +79,7 @@ export interface BadgeDefinition {
     type: 'speech_count' | 'consecutive_days' | 'total_days' | 'rating_achievement' | 'profile_completion' | 'time_based';
     value: number;
     condition?: 'greater_than' | 'equal_to' | 'less_than';
-    ratingType?: 'clarity' | 'pace' | 'tone' | 'overall' | 'profile' | 'interests' | 'bio';
+    ratingType?: 'clarity' | 'pace' | 'tone' | 'filler' | 'all' | 'overall' | 'profile' | 'interests' | 'bio';
     ratingValue?: 'excellent' | 'good' | 'fair' | 'poor';
   };
   createdAt?: Date;
