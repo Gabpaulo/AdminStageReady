@@ -11,11 +11,11 @@ const DEFAULT_BADGES_SEED: Array<{ id: string; data: Omit<BadgeDefinition, 'id' 
   { id: 'clarity_master', data: { name: 'Clarity Master', description: 'Achieve excellent clarity rating', icon: 'assets/badges/Clarity-master.svg', category: 'progress', rarity: 'rare', maxProgress: 1, criteria: { type: 'rating_achievement', value: 1, ratingType: 'clarity', ratingValue: 'excellent' } } },
   { id: 'pace_perfect', data: { name: 'Pace Perfect', description: 'Achieve excellent pace rating', icon: 'assets/badges/Pace-perfect.svg', category: 'progress', rarity: 'rare', maxProgress: 1, criteria: { type: 'rating_achievement', value: 1, ratingType: 'pace', ratingValue: 'excellent' } } },
   { id: 'tone_expert', data: { name: 'Tone Expert', description: 'Achieve excellent tone rating', icon: 'assets/badges/Tone-Expert.svg', category: 'progress', rarity: 'rare', maxProgress: 1, criteria: { type: 'rating_achievement', value: 1, ratingType: 'tone', ratingValue: 'excellent' } } },
-  { id: 'filler_fighter', data: { name: 'Filler Fighter', description: 'Reduce filler words by 50%', icon: 'assets/badges/Filler-Fighter.svg', category: 'progress', rarity: 'epic', maxProgress: 1, criteria: { type: 'rating_achievement', value: 1 } } },
+  { id: 'filler_fighter', data: { name: 'Filler Fighter', description: 'Achieve an excellent filler-word rating', icon: 'assets/badges/Filler-Fighter.svg', category: 'progress', rarity: 'epic', maxProgress: 1, criteria: { type: 'rating_achievement', value: 1, ratingType: 'filler', ratingValue: 'excellent' } } },
   { id: 'speed_demon', data: { name: 'Speed Demon', description: 'Complete 10 speech analyses', icon: 'assets/badges/Speed-demon.svg', category: 'performance', rarity: 'common', maxProgress: 10, criteria: { type: 'speech_count', value: 10 } } },
   { id: 'marathon_speaker', data: { name: 'Marathon Speaker', description: 'Complete 50 speech analyses', icon: 'assets/badges/Marathon-Speaker.svg', category: 'performance', rarity: 'epic', maxProgress: 50, criteria: { type: 'speech_count', value: 50 } } },
   { id: 'centurion', data: { name: 'Centurion', description: 'Complete 100 speech analyses', icon: 'assets/badges/Centurion.svg', category: 'performance', rarity: 'legendary', maxProgress: 100, criteria: { type: 'speech_count', value: 100 } } },
-  { id: 'perfectionist', data: { name: 'Perfectionist', description: 'Get all excellent ratings in one session', icon: 'assets/badges/Perfectionist.svg', category: 'performance', rarity: 'legendary', maxProgress: 1, criteria: { type: 'rating_achievement', value: 1 } } },
+  { id: 'perfectionist', data: { name: 'Perfectionist', description: 'Get all excellent ratings in one session', icon: 'assets/badges/Perfectionist.svg', category: 'performance', rarity: 'legendary', maxProgress: 1, criteria: { type: 'rating_achievement', value: 1, ratingType: 'all', ratingValue: 'excellent' } } },
   { id: 'profile_pioneer', data: { name: 'Profile Pioneer', description: 'Complete your profile setup', icon: 'assets/badges/Profile-Pioneer.svg', category: 'special', rarity: 'common', maxProgress: 1, criteria: { type: 'profile_completion', value: 1, ratingType: 'profile' } } },
   { id: 'early_bird', data: { name: 'Early Bird', description: 'Use the app for the first time', icon: 'assets/badges/Early-Bird.svg', category: 'special', rarity: 'common', maxProgress: 1, criteria: { type: 'speech_count', value: 1 } } },
   { id: 'comeback_kid', data: { name: 'Comeback Kid', description: 'Return after 7+ days away', icon: 'assets/badges/Comeback-kid.svg', category: 'special', rarity: 'rare', maxProgress: 1, criteria: { type: 'time_based', value: 1 } } },
@@ -43,7 +43,7 @@ export class BadgesPage implements OnInit {
   categoryOptions: BadgeDefinition['category'][] = ['practice', 'progress', 'performance', 'special', 'learning'];
   rarityOptions: BadgeDefinition['rarity'][] = ['common', 'rare', 'epic', 'legendary'];
   criteriaTypeOptions: CriteriaType[] = ['speech_count', 'consecutive_days', 'total_days', 'rating_achievement', 'profile_completion', 'time_based'];
-  ratingTypeOptions: Array<NonNullable<BadgeDefinition['criteria']['ratingType']>> = ['clarity', 'pace', 'tone', 'overall', 'profile', 'interests', 'bio'];
+  ratingTypeOptions: Array<NonNullable<BadgeDefinition['criteria']['ratingType']>> = ['clarity', 'pace', 'tone', 'filler', 'all', 'overall', 'profile', 'interests', 'bio'];
   ratingValueOptions: Array<NonNullable<BadgeDefinition['criteria']['ratingValue']>> = ['excellent', 'good', 'fair', 'poor'];
   conditionOptions: Array<NonNullable<BadgeDefinition['criteria']['condition']>> = ['greater_than', 'equal_to', 'less_than'];
 
@@ -321,7 +321,7 @@ export class BadgesPage implements OnInit {
       case 'total_days': return `Total days ${op} ${criteria.value}`;
       case 'rating_achievement': return `${criteria.ratingType || '?'} = ${criteria.ratingValue || '?'}`;
       case 'profile_completion': return `Profile: ${criteria.ratingType || '?'} ${op} ${criteria.value}`;
-      case 'time_based': return 'Time-based (after 10 PM)';
+      case 'time_based': return 'Time-based (after 10 PM, or 7+ days away for Comeback Kid)';
       default: return '-';
     }
   }
