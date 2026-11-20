@@ -208,11 +208,33 @@ export class BadgesPage implements OnInit {
     this.formError = '';
     try {
       this.pickIcon(await this.adminFirebase.uploadBadgeIcon(file));
-    } catch (err) {
-      this.formError = 'Upload failed. Check that Firebase Storage rules allow admins to write to badgeIcons/.';
-      console.error(err);
+    } catch (err: any) {
+      this.formError = this.describeUploadError(err);
+      console.error('Badge icon upload failed', err?.code, err?.customData?.serverResponse ?? err);
     } finally {
       this.uploadingIcon = false;
+    }
+  }
+
+  /** Turns a Firebase Storage error into a message that says what actually went wrong. */
+  private describeUploadError(err: any): string {
+    const code: string = err?.code || 'unknown';
+    switch (code) {
+      case 'storage/unauthorized':
+        return 'Upload blocked by Firebase Storage rules (storage/unauthorized). The Storage rules must allow your admin account to write to badgeIcons/.';
+      case 'storage/unauthenticated':
+        return 'You are not signed in (storage/unauthenticated). Sign out and sign in again, then retry.';
+      case 'storage/bucket-not-found':
+      case 'storage/project-not-found':
+      case 'storage/no-default-bucket':
+        return `Firebase Storage is not set up for this project (${code}). Check storageBucket in the environment config.`;
+      case 'storage/quota-exceeded':
+        return 'Firebase Storage quota exceeded (storage/quota-exceeded). Check the project billing plan.';
+      case 'storage/retry-limit-exceeded':
+      case 'storage/canceled':
+        return `Upload did not finish (${code}). Check your connection and try again.`;
+      default:
+        return `Upload failed (${code}). Open the browser console for details.`;
     }
   }
 
