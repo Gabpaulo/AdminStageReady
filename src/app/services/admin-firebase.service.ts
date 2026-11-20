@@ -8,7 +8,7 @@ import {
   getFirestore, Firestore, collection, getDocs, doc, getDoc, setDoc,
   query, orderBy, limit, Timestamp, deleteDoc, updateDoc, writeBatch
 } from 'firebase/firestore';
-import { getStorage, FirebaseStorage, ref, deleteObject, listAll } from 'firebase/storage';
+import { getStorage, FirebaseStorage, ref, deleteObject, listAll, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { environment } from '../../environments/environment';
 import { BehaviorSubject, Observable } from 'rxjs';
 
@@ -499,6 +499,14 @@ export class AdminFirebaseService {
   async setBadgeDefinitionActive(id: string, active: boolean): Promise<void> {
     const badgeRef = doc(this.firestore, `badgeDefinitions/${id}`);
     await updateDoc(badgeRef, { active, updatedAt: Timestamp.now() });
+  }
+
+  /** Uploads a badge icon to Firebase Storage and returns its public download URL. */
+  async uploadBadgeIcon(file: File): Promise<string> {
+    const safeName = file.name.replace(/[^\w.-]/g, '_');
+    const iconRef = ref(this.storage, `badgeIcons/${Date.now()}_${safeName}`);
+    await uploadBytes(iconRef, file, { contentType: file.type });
+    return getDownloadURL(iconRef);
   }
 
   // ── Practice Scripts ───────────────────────────────────

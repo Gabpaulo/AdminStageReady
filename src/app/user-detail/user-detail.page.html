@@ -328,7 +328,8 @@
         <div class="badges-grid" *ngIf="getUnlockedBadges().length > 0">
           <div class="badge-card unlocked" *ngFor="let badge of getUnlockedBadges()">
             <div class="badge-icon">
-              <ion-icon name="trophy"></ion-icon>
+              <img *ngIf="badge.icon" [src]="getBadgeIconPath(badge.icon)" [alt]="badge.name" />
+              <ion-icon *ngIf="!badge.icon" name="trophy"></ion-icon>
             </div>
             <span class="badge-name">{{ badge.name }}</span>
             <span class="badge-desc">{{ badge.description }}</span>

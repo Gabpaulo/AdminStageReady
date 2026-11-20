@@ -42,10 +42,30 @@ export class BadgesPage implements OnInit {
 
   categoryOptions: BadgeDefinition['category'][] = ['practice', 'progress', 'performance', 'special', 'learning'];
   rarityOptions: BadgeDefinition['rarity'][] = ['common', 'rare', 'epic', 'legendary'];
-  criteriaTypeOptions: CriteriaType[] = ['speech_count', 'consecutive_days', 'total_days', 'rating_achievement', 'profile_completion', 'time_based'];
-  ratingTypeOptions: Array<NonNullable<BadgeDefinition['criteria']['ratingType']>> = ['clarity', 'pace', 'tone', 'filler', 'all', 'overall', 'profile', 'interests', 'bio'];
   ratingValueOptions: Array<NonNullable<BadgeDefinition['criteria']['ratingValue']>> = ['excellent', 'good', 'fair', 'poor'];
-  conditionOptions: Array<NonNullable<BadgeDefinition['criteria']['condition']>> = ['greater_than', 'equal_to', 'less_than'];
+  // Labels mirror how the user app's BadgeService actually evaluates each rule.
+  ruleOptions: Array<{ value: CriteriaType; label: string }> = [
+    { value: 'speech_count', label: 'Complete a number of speech analyses' },
+    { value: 'consecutive_days', label: 'Practice several days in a row (streak)' },
+    { value: 'total_days', label: 'Practice on a number of different days' },
+    { value: 'rating_achievement', label: 'Get a specific rating in one speech' },
+    { value: 'profile_completion', label: 'Fill in part of their profile' },
+    { value: 'time_based', label: 'Practice late at night (10 PM or later)' },
+  ];
+  skillOptions: Array<{ value: NonNullable<BadgeDefinition['criteria']['ratingType']>; label: string }> = [
+    { value: 'clarity', label: 'Clarity' },
+    { value: 'pace', label: 'Pace' },
+    { value: 'tone', label: 'Tone' },
+    { value: 'filler', label: 'Filler words' },
+    { value: 'overall', label: 'Overall score' },
+    { value: 'all', label: 'Every skill in the same speech' },
+  ];
+  profileOptions: Array<{ value: NonNullable<BadgeDefinition['criteria']['ratingType']>; label: string }> = [
+    { value: 'profile', label: 'Finish profile setup' },
+    { value: 'interests', label: 'Add interests' },
+    { value: 'bio', label: 'Write a bio' },
+  ];
+  iconOptions = [...new Set(DEFAULT_BADGES_SEED.map(b => b.data.icon))];
 
   // Create / Edit form
   showForm = false;
@@ -56,6 +76,7 @@ export class BadgesPage implements OnInit {
   saving = false;
   saveMessage = '';
   iconPreviewBroken = false;
+  uploadingIcon = false;
 
   // Generic confirmation modal
   showConfirmModal = false;
@@ -170,25 +191,84 @@ export class BadgesPage implements OnInit {
     (event.target as HTMLImageElement).style.display = 'none';
   }
 
+  async onIconFileSelected(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = ''; // allow re-picking the same file
+    if (!file) return;
+    if (!['image/svg+xml', 'image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      this.formError = 'Icon must be an SVG, PNG, JPG or WebP image.';
+      return;
+    }
+    if (file.size > 500 * 1024) {
+      this.formError = 'Icon must be smaller than 500 KB.';
+      return;
+    }
+    this.uploadingIcon = true;
+    this.formError = '';
+    try {
+      this.pickIcon(await this.adminFirebase.uploadBadgeIcon(file));
+    } catch (err) {
+      this.formError = 'Upload failed. Check that Firebase Storage rules allow admins to write to badgeIcons/.';
+      console.error(err);
+    } finally {
+      this.uploadingIcon = false;
+    }
+  }
+
+  pickIcon(icon: string) {
+    this.formModel.icon = icon;
+    this.onIconChange();
+  }
+
   onCriteriaTypeChange() {
     if (!this.formModel.criteria) return;
-    const type = this.formModel.criteria.type;
-    const value = this.formModel.criteria.value;
-    this.formModel.criteria = { type, value };
+    const { type, value } = this.formModel.criteria;
+    this.formModel.criteria =
+      type === 'rating_achievement' ? { type, value: 1, ratingType: 'clarity', ratingValue: 'excellent' } :
+      type === 'profile_completion' ? { type, value: 1, ratingType: 'profile' } :
+      { type, value: value || 1 };
+  }
+
+  /** Rules where the admin types a number (and progress is tracked toward it). */
+  needsCount(c: BadgeDefinition['criteria']): boolean {
+    return ['speech_count', 'consecutive_days', 'total_days'].includes(c.type)
+      || (c.type === 'profile_completion' && c.ratingType === 'interests');
+  }
+
+  countLabel(c: BadgeDefinition['criteria']): string {
+    switch (c.type) {
+      case 'speech_count': return 'How many speeches?';
+      case 'consecutive_days': return 'How many days in a row?';
+      case 'total_days': return 'How many different days?';
+      default: return 'How many interests?';
+    }
+  }
+
+  /** Clean criteria for Firestore: only the fields this rule uses, never undefined. */
+  private buildCriteria(): BadgeDefinition['criteria'] {
+    const c = this.formModel.criteria!;
+    const criteria: BadgeDefinition['criteria'] = { type: c.type, value: this.needsCount(c) ? Number(c.value) : 1 };
+    if (c.type === 'rating_achievement') {
+      criteria.ratingType = c.ratingType;
+      criteria.ratingValue = c.ratingValue;
+    }
+    if (c.type === 'profile_completion') criteria.ratingType = c.ratingType;
+    return criteria;
   }
 
   private validateForm(): string | null {
     const m = this.formModel;
-    if (!m.name || !m.name.trim()) return 'Name is required.';
-    if (!m.description || !m.description.trim()) return 'Description is required.';
-    if (!m.icon || !m.icon.trim()) return 'Icon URL is required.';
-    if (!m.maxProgress || m.maxProgress < 1) return 'Max progress must be at least 1.';
-    if (!m.criteria || !m.criteria.value || m.criteria.value < 1) return 'Criteria value must be at least 1.';
+    if (!m.name || !m.name.trim()) return 'Give the badge a name.';
+    if (!m.description || !m.description.trim()) return 'Add a description so users know how to earn it.';
+    if (!m.icon || !m.icon.trim()) return 'Pick an icon or paste an image URL.';
+    if (!m.criteria) return 'Choose what the user has to do.';
+    if (this.needsCount(m.criteria) && !(Number(m.criteria.value) >= 1)) return 'Enter a number of at least 1.';
     if (m.criteria.type === 'rating_achievement' && (!m.criteria.ratingType || !m.criteria.ratingValue)) {
-      return 'Rating type and rating value are required for this criteria type.';
+      return 'Choose the skill and the rating needed.';
     }
     if (m.criteria.type === 'profile_completion' && !m.criteria.ratingType) {
-      return 'Rating type is required for profile completion criteria.';
+      return 'Choose which part of the profile.';
     }
     return null;
   }
@@ -204,14 +284,16 @@ export class BadgesPage implements OnInit {
     this.formError = '';
     try {
       const m = this.formModel;
+      const criteria = this.buildCriteria();
       const payload = {
         name: m.name!.trim(),
         description: m.description!.trim(),
         icon: m.icon!.trim(),
         category: m.category!,
         rarity: m.rarity!,
-        maxProgress: m.maxProgress!,
-        criteria: m.criteria!,
+        // Progress bar target always equals the rule's number (1 for yes/no rules).
+        maxProgress: criteria.value,
+        criteria,
       };
 
       if (this.formMode === 'create') {
@@ -313,15 +395,27 @@ export class BadgesPage implements OnInit {
 
   // ── Helpers ────────────────────────────────────────────
 
-  formatCriteria(criteria: BadgeDefinition['criteria']): string {
-    const op = criteria.condition === 'greater_than' ? '>' : criteria.condition === 'equal_to' ? '=' : criteria.condition === 'less_than' ? '<' : '>=';
-    switch (criteria.type) {
-      case 'speech_count': return `Speeches ${op} ${criteria.value}`;
-      case 'consecutive_days': return `Consecutive days ${op} ${criteria.value}`;
-      case 'total_days': return `Total days ${op} ${criteria.value}`;
-      case 'rating_achievement': return `${criteria.ratingType || '?'} = ${criteria.ratingValue || '?'}`;
-      case 'profile_completion': return `Profile: ${criteria.ratingType || '?'} ${op} ${criteria.value}`;
-      case 'time_based': return 'Time-based (after 10 PM, or 7+ days away for Comeback Kid)';
+  /** Plain-English unlock rule, shown in the table and the form preview. */
+  describeCriteria(c: BadgeDefinition['criteria'], badgeId?: string | null): string {
+    const plural = (n: number, one: string, many = one + 's') => `${n} ${n === 1 ? one : many}`;
+    const skill = this.skillOptions.find(s => s.value === c.ratingType)?.label.toLowerCase() ?? '?';
+    switch (c.type) {
+      case 'speech_count': return `Unlocks after completing ${plural(c.value, 'speech analysis', 'speech analyses')}.`;
+      case 'consecutive_days': return `Unlocks after practicing ${plural(c.value, 'day')} in a row.`;
+      case 'total_days': return `Unlocks after practicing on ${plural(c.value, 'different day')}.`;
+      case 'rating_achievement':
+        return c.ratingType === 'all'
+          ? `Unlocks when every skill is rated "${c.ratingValue}" in the same speech.`
+          : `Unlocks when a speech gets a "${c.ratingValue}" ${skill} rating.`;
+      case 'profile_completion':
+        if (c.ratingType === 'interests') return `Unlocks after adding ${plural(c.value, 'interest')} to their profile.`;
+        if (c.ratingType === 'bio') return 'Unlocks after writing a profile bio.';
+        return 'Unlocks after finishing profile setup.';
+      case 'time_based':
+        // The user app special-cases this id; every other time-based badge is the 10 PM rule.
+        return badgeId === 'comeback_kid'
+          ? 'Unlocks when returning to practice after 7+ days away.'
+          : 'Unlocks when practicing at 10 PM or later.';
       default: return '-';
     }
   }

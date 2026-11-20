@@ -69,8 +69,7 @@
           <th>Badge</th>
           <th>Category</th>
           <th>Rarity</th>
-          <th>Max Progress</th>
-          <th>Criteria</th>
+          <th>How to unlock</th>
           <th>Status</th>
           <th>Actions</th>
         </tr>
@@ -93,8 +92,7 @@
           <td>
             <span class="rarity-badge" [attr.data-rarity]="badge.rarity">{{ formatLabel(badge.rarity) }}</span>
           </td>
-          <td>{{ badge.maxProgress }}</td>
-          <td class="criteria-cell">{{ formatCriteria(badge.criteria) }}</td>
+          <td class="criteria-cell">{{ describeCriteria(badge.criteria, badge.id) }}</td>
           <td>
             <span class="status-badge" [class.inactive]="badge.active === false">
               {{ badge.active === false ? 'Inactive' : 'Active' }}
@@ -147,91 +145,131 @@
       <div class="form-error" *ngIf="formError">{{ formError }}</div>
 
       <div class="edit-form">
-        <div class="edit-row">
-          <label>Name</label>
-          <input type="text" [(ngModel)]="formModel.name" placeholder="e.g. First Steps" />
-        </div>
-        <div class="edit-row">
-          <label>Description</label>
-          <textarea [(ngModel)]="formModel.description" rows="2" placeholder="What does the user need to do?"></textarea>
-        </div>
-        <div class="edit-row">
-          <label>Icon URL</label>
-          <input type="text" [(ngModel)]="formModel.icon" (ngModelChange)="onIconChange()" placeholder="https://..." />
-          <div class="icon-preview" *ngIf="formModel.icon">
-            <img *ngIf="!iconPreviewBroken" [src]="formModel.icon" (error)="onIconPreviewError()" />
-            <div *ngIf="iconPreviewBroken" class="icon-preview-broken">
-              <ion-icon name="image-outline"></ion-icon>
-              Couldn't load image
+        <!-- Live preview: what users will see -->
+        <div class="badge-preview" *ngIf="formModel.criteria">
+          <div class="preview-icon">
+            <img *ngIf="formModel.icon && !iconPreviewBroken" [src]="formModel.icon" (error)="onIconPreviewError()" alt="" />
+            <ion-icon *ngIf="!formModel.icon || iconPreviewBroken" name="ribbon-outline"></ion-icon>
+          </div>
+          <div class="preview-text">
+            <div class="preview-title">
+              <span class="badge-name">{{ formModel.name || 'Badge name' }}</span>
+              <span class="rarity-badge" [attr.data-rarity]="formModel.rarity">{{ formatLabel(formModel.rarity || 'common') }}</span>
+            </div>
+            <div class="badge-desc">{{ formModel.description || 'Description users will read' }}</div>
+            <div class="preview-rule">
+              <ion-icon name="lock-open-outline"></ion-icon>
+              {{ describeCriteria(formModel.criteria, editingId) }}
             </div>
           </div>
         </div>
-        <div class="edit-row-group">
-          <div class="edit-row">
-            <label>Category</label>
-            <select [(ngModel)]="formModel.category">
-              <option *ngFor="let c of categoryOptions" [value]="c">{{ formatLabel(c) }}</option>
-            </select>
-          </div>
-          <div class="edit-row">
-            <label>Rarity</label>
-            <select [(ngModel)]="formModel.rarity">
-              <option *ngFor="let r of rarityOptions" [value]="r">{{ formatLabel(r) }}</option>
-            </select>
-          </div>
-          <div class="edit-row">
-            <label>Max Progress</label>
-            <input type="number" min="1" [(ngModel)]="formModel.maxProgress" />
-          </div>
-        </div>
 
-        <div class="edit-row" *ngIf="formMode === 'edit'">
-          <label class="checkbox-label">
-            <input type="checkbox" [(ngModel)]="formModel.active" />
-            Active
-          </label>
-        </div>
+        <fieldset class="criteria-fieldset">
+          <legend>1. Basics</legend>
+          <div class="edit-row">
+            <label>Name</label>
+            <input type="text" [(ngModel)]="formModel.name" placeholder="e.g. First Steps" />
+          </div>
+          <div class="edit-row">
+            <label>Description</label>
+            <textarea [(ngModel)]="formModel.description" rows="2" placeholder="Shown to users, e.g. Complete your first speech analysis"></textarea>
+          </div>
+          <div class="edit-row-group">
+            <div class="edit-row">
+              <label>Category</label>
+              <select [(ngModel)]="formModel.category">
+                <option *ngFor="let c of categoryOptions" [value]="c">{{ formatLabel(c) }}</option>
+              </select>
+            </div>
+            <div class="edit-row">
+              <label>Rarity</label>
+              <select [(ngModel)]="formModel.rarity">
+                <option *ngFor="let r of rarityOptions" [value]="r">{{ formatLabel(r) }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="edit-row" *ngIf="formMode === 'edit'">
+            <label class="checkbox-label">
+              <input type="checkbox" [(ngModel)]="formModel.active" />
+              Active (users can earn it)
+            </label>
+          </div>
+        </fieldset>
 
         <fieldset class="criteria-fieldset" *ngIf="formModel.criteria">
-          <legend>Unlock Criteria</legend>
+          <legend>2. What does the user have to do?</legend>
 
           <div class="edit-row">
-            <label>Type</label>
+            <label>Rule</label>
             <select [(ngModel)]="formModel.criteria.type" (ngModelChange)="onCriteriaTypeChange()">
-              <option *ngFor="let t of criteriaTypeOptions" [value]="t">{{ formatLabel(t) }}</option>
+              <option *ngFor="let r of ruleOptions" [value]="r.value">{{ r.label }}</option>
             </select>
           </div>
 
-          <div class="edit-row">
-            <label>Value</label>
+          <div class="edit-row-group" *ngIf="formModel.criteria.type === 'rating_achievement'">
+            <div class="edit-row">
+              <label>Which skill?</label>
+              <select [(ngModel)]="formModel.criteria.ratingType">
+                <option *ngFor="let s of skillOptions" [value]="s.value">{{ s.label }}</option>
+              </select>
+            </div>
+            <div class="edit-row">
+              <label>Rating needed</label>
+              <select [(ngModel)]="formModel.criteria.ratingValue">
+                <option *ngFor="let rv of ratingValueOptions" [value]="rv">{{ formatLabel(rv) }}</option>
+              </select>
+            </div>
+          </div>
+          <p class="criteria-hint" *ngIf="formModel.criteria.type === 'rating_achievement'">
+            The rating must match exactly. "Good" will not unlock on an "Excellent" speech.
+          </p>
+
+          <div class="edit-row" *ngIf="formModel.criteria.type === 'profile_completion'">
+            <label>Which part?</label>
+            <select [(ngModel)]="formModel.criteria.ratingType">
+              <option *ngFor="let p of profileOptions" [value]="p.value">{{ p.label }}</option>
+            </select>
+          </div>
+
+          <div class="edit-row" *ngIf="needsCount(formModel.criteria)">
+            <label>{{ countLabel(formModel.criteria) }}</label>
             <input type="number" min="1" [(ngModel)]="formModel.criteria.value" />
           </div>
-
-          <div class="edit-row" *ngIf="formModel.criteria.type === 'speech_count' || formModel.criteria.type === 'consecutive_days' || formModel.criteria.type === 'total_days'">
-            <label>Condition (default is "at least")</label>
-            <select [(ngModel)]="formModel.criteria.condition">
-              <option [ngValue]="undefined">At least (default)</option>
-              <option *ngFor="let c of conditionOptions" [ngValue]="c">{{ formatLabel(c) }}</option>
-            </select>
-          </div>
-
-          <div class="edit-row" *ngIf="formModel.criteria.type === 'rating_achievement' || formModel.criteria.type === 'profile_completion'">
-            <label>Rating Type</label>
-            <select [(ngModel)]="formModel.criteria.ratingType">
-              <option *ngFor="let rt of ratingTypeOptions" [value]="rt">{{ formatLabel(rt) }}</option>
-            </select>
-          </div>
-
-          <div class="edit-row" *ngIf="formModel.criteria.type === 'rating_achievement'">
-            <label>Rating Value</label>
-            <select [(ngModel)]="formModel.criteria.ratingValue">
-              <option *ngFor="let rv of ratingValueOptions" [value]="rv">{{ formatLabel(rv) }}</option>
-            </select>
-          </div>
-
-          <p class="criteria-hint" *ngIf="formModel.criteria.type === 'time_based'">
-            Time-based criteria currently only supports "after 10 PM" in the app - the value above is not used yet.
+          <p class="criteria-hint" *ngIf="needsCount(formModel.criteria)">
+            Users see a progress bar counting up to this number.
           </p>
+
+          <p class="criteria-hint" *ngIf="formModel.criteria.type === 'time_based' && editingId !== 'comeback_kid'">
+            Unlocks the first time a user finishes a speech at 10 PM or later (their device's time).
+          </p>
+        </fieldset>
+
+        <fieldset class="criteria-fieldset">
+          <legend>3. Icon</legend>
+          <div class="icon-picker">
+            <button type="button" *ngFor="let icon of iconOptions" class="icon-option"
+              [class.selected]="formModel.icon === icon" (click)="pickIcon(icon)" [title]="icon">
+              <img [src]="icon" alt="" (error)="onThumbError($event)" />
+            </button>
+          </div>
+          <div class="edit-row">
+            <label>Or upload your own (SVG, PNG, JPG, WebP · max 500 KB)</label>
+            <label class="upload-btn" [class.disabled]="uploadingIcon">
+              <ion-spinner *ngIf="uploadingIcon" name="crescent"></ion-spinner>
+              <ion-icon *ngIf="!uploadingIcon" name="cloud-upload-outline"></ion-icon>
+              {{ uploadingIcon ? 'Uploading...' : 'Choose file' }}
+              <input type="file" accept=".svg,image/svg+xml,image/png,image/jpeg,image/webp"
+                (change)="onIconFileSelected($event)" [disabled]="uploadingIcon" hidden />
+            </label>
+          </div>
+          <div class="edit-row">
+            <label>Or paste an image URL</label>
+            <input type="text" [(ngModel)]="formModel.icon" (ngModelChange)="onIconChange()" placeholder="https://... or assets/badges/name.svg" />
+            <div *ngIf="formModel.icon && iconPreviewBroken" class="icon-preview-broken">
+              <ion-icon name="image-outline"></ion-icon>
+              Couldn't load this image
+            </div>
+          </div>
         </fieldset>
 
         <div class="edit-actions">

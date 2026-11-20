@@ -325,6 +325,12 @@ export class UserDetailPage implements OnInit {
     return '#ef4444';
   }
 
+  getBadgeIconPath(icon: string): string {
+    if (!icon) return '';
+    if (icon.startsWith('/') || icon.startsWith('http')) return icon;
+    return '/' + icon;
+  }
+
   getUnlockedBadges(): any[] {
     return (this.badges?.badges || []).filter((b: any) => b.isUnlocked);
   }
